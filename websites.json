@@ -1,0 +1,12 @@
+{
+  "Westside": {
+    "url": "https://www.westside.com/collections/view-all-menswear",
+    "container": "li.wizzy-result-product",
+    "selectors": {
+      "brand": "p.product-item-sub-title",
+      "title": "p.product-item-title",
+      "price": "div.wizzy-product-item-price",
+      "link": "a.wizzy-result-product-item"
+    }
+  }
+}
