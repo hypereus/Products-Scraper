@@ -16,7 +16,10 @@ def load_data_into_pandas(query="SELECT * FROM Apparels"):
     try:
         # 1. Connect to the database file
         conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
 
+        # Method 1: Drop table if exists (recommended)
+        cursor.execute("DROP TABLE IF EXISTS products")
         # 2. Use read_sql_query to execute the SQL and load results directly into a DataFrame
         df = pd.read_sql_query(query, conn)
 
@@ -45,8 +48,8 @@ def clean_product_cards(product_cards):
     for i in tqdm(range(len(product_cards))):
         done_product = {}
         product = product_cards[i].inner_text().split('\n')
-        clean_product = [item for item in product if item.strip() ]
-        print(f"{len(clean_product)}")
+        clean_product = [ item for item in product if item.strip() ]
+        #print(f"{len(clean_product)}")
         if clean_product[0] == 'New':
             done_product['IsNew'] = 'True'
             done_product['Brand'] = clean_product[1]
@@ -57,9 +60,41 @@ def clean_product_cards(product_cards):
             done_product['Brand'] = clean_product[0]
             done_product['Title'] = clean_product[1]
             done_product['Price'] = clean_product[2]
-        print(f'{done_product}')
+        #print(f'{done_product}')
         done_product_cards.append(done_product)
     return done_product_cards
+
+
+def clean_product_price(clean_product_price):
+    price = clean_product_price.split()
+    if len(price) == 4:
+        if ',' in price[-1]:
+            real_price = 1 + int(price[-1].split('.')[-1]) * 0.01 + int(price[-1].split('.')[0].split(',')[0]) * 1000 + int(
+                price[-1].split('.')[0].split(',')[1])
+        else:
+            real_price = 1 + int(price[-1].split('.')[-1]) * 0.01 + int(price[-1].split('.')[0])
+
+        if ',' in price[-3]:
+            current_price = 1 + int(price[-3].split('.')[-1]) * 0.01 + int(price[-3].split('.')[0].split(',')[0]) * 1000 + int(
+                price[-3].split('.')[0].split(',')[1])
+        else:
+            current_price = 1 + int(price[-3].split('.')[-1]) * 0.01 + int(price[-3].split('.')[0])
+    else:
+        if ',' in price[-1]:
+            real_price = 1 + int(price[-1].split('.')[-1]) * 0.01 + int(
+                price[-1].split('.')[0].split(',')[0]) * 1000 + int(
+                price[-1].split('.')[0].split(',')[1])
+        else:
+            real_price = 1 + int(price[-1].split('.')[-1]) * 0.01 + int(price[-1].split('.')[0])
+        current_price = real_price
+    return real_price, current_price
+
+def clean_product_link(product_card_link):
+    #print(f"Found {len(product_card_link)} links, Now cleaning Links!")
+    print(f"Cleaning Product Card {product_card_link}!")
+    link = product_card_link.get_attribute('href')
+    print(f"{link}")
+    return link
 
 
 def clean_link(links):
@@ -73,28 +108,12 @@ def clean_link(links):
         link_list.append(link)
     return link_list
 
-def clean_price_card(clean_product_price):
-    price = clean_product_price.split()
-    if ',' in price[-1]:
-        real_price = 1 + int(price[-1].split('.')[-1]) * 0.01 + int(price[-1].split('.')[0].split(',')[0]) * 1000 + int(
-            price[-1].split('.')[0].split(',')[1])
-    else:
-        real_price = 1 + int(price[-1].split('.')[-1]) * 0.01 + int(price[-1].split('.')[0])
-
-    if ',' in price[-3]:
-        discount_price = 1 + int(price[-3].split('.')[-1]) * 0.01 + int(price[-3].split('.')[0].split(',')[0]) * 1000 + int(
-            price[-3].split('.')[0].split(',')[1])
-    else:
-        discount_price = 1 + int(price[-3].split('.')[-1]) * 0.01 + int(price[-3].split('.')[0])
-
-    return real_price, discount_price
-
 def clean_price(prices):
     print(f"Found {len(prices)} prices, Now cleaning Prices!")
     price_list = []
     for i in tqdm(range(len(prices))):
         #print(f"Cleaning Price {i}!")
-        print(f"{prices[i].split()}")
+        #print(f"{prices[i].split()}")
         price = prices[i].split()[-1]
         if ',' in price:
             real_price = 1 + int(price.split('.')[-1])*0.01 + int(price.split('.')[0].split(',')[0])*1000 + int(price.split('.')[0].split(',')[1])
@@ -104,72 +123,64 @@ def clean_price(prices):
     return price_list
 
 def clean_product_title(product_card_title):
-    #print(f"Found {len(titles)} titles, Now cleaning Titles!")
-    new_titles = []
-    items = []
     item = {}
-    for i in tqdm(range(len(titles))):
-        #print(f"Cleaning Title {i}!")
-    new_titles.append(product_card_title.split())
-    if new_titles[i][-2] == "of" and new_titles[i][-3] == "Pack": #Underwear Condition
-        item["Item"] = new_titles[i][-5]
-        if new_titles[i][0] == "WES": #WES Condition
-            item["Brand"] = new_titles[i][0] + " " + new_titles[i][1]
-            if new_titles[i][2] == "Dark" or new_titles[i][2] == "Light": #Light or Dark Colour Condition
-                item["Colour"] = new_titles[i][2] + " " + new_titles[i][3]
-                item["Descriptor"] = new_titles[i][4]
-                for j in range(5, len(new_titles[i])):
-                    item["Descriptor"] += " " + new_titles[i][j]
+    new_title = product_card_title.split()
+    if new_title[-2] == "of" and new_title[-3] == "Pack": #Underwear Condition
+        item["Item"] = new_title[-5]
+        if new_title[0] == "WES": #WES Condition
+            item["Brand"] = new_title[0] + " " + new_title[1]
+            if new_title[2] in ["Dark","Dusty","Light", "Plain"] : #Light or Dark Colour Condition
+                item["Colour"] = new_title[2] + " " + new_title[3]
+                item["Descriptor"] = new_title[4]
+                for j in range(5, len(new_title)):
+                    item["Descriptor"] += " " + new_title[j]
             else:
-                item["Colour"] = new_titles[i][2]
-                item["Descriptor"] = new_titles[i][3]
-                for j in range(4, len(new_titles[i])):
-                    item["Descriptor"] += " " + new_titles[i][j]
+                item["Colour"] = new_title[2]
+                item["Descriptor"] = new_title[3]
+                for j in range(4, len(new_title)):
+                    item["Descriptor"] += " " + new_title[j]
         else:
-            item["Brand"] = new_titles[i][0]
-            if new_titles[i][1] == "Dark" or new_titles[i][1] == "Light":
-                item["Colour"] = new_titles[i][1] + " " + new_titles[i][2]
-                item["Descriptor"] = new_titles[i][3]
-                for j in range(4, len(new_titles[i])):
-                    item["Descriptor"] += " " + new_titles[i][j]
+            item["Brand"] = new_title[0]
+            if new_title[1] == "Dark" or new_title[1] == "Light":
+                item["Colour"] = new_title[1] + " " + new_title[2]
+                item["Descriptor"] = new_title[3]
+                for j in range(4, len(new_title)):
+                    item["Descriptor"] += " " + new_title[j]
 
             else:
-                item["Colour"] = new_titles[i][1]
-                item["Descriptor"] = new_titles[i][2]
-                for j in range(3, len(new_titles[i])):
-                    item["Descriptor"] += " " + new_titles[i][j]
+                item["Colour"] = new_title[1]
+                item["Descriptor"] = new_title[2]
+                for j in range(3, len(new_title)):
+                    item["Descriptor"] += " " + new_title[j]
     else:
-        item["Item"] = new_titles[i][-1]
-        if new_titles[i][0] == "WES":
-            item["Brand"] = new_titles[i][0] + " " + new_titles[i][1]
-            if new_titles[i][2] == "Dark" or new_titles[i][2] == "Light":
-                item["Colour"] = new_titles[i][2] + " " + new_titles[i][3]
-                item["Descriptor"] = new_titles[i][4]
-                for j in range(5, len(new_titles[i]) - 1):
-                    item["Descriptor"] += " " + new_titles[i][j]
+        item["Item"] = new_title[-1]
+        if new_title[0] == "WES":
+            item["Brand"] = new_title[0] + " " + new_title[1]
+            if new_title[2] == "Dark" or new_title[2] == "Light":
+                item["Colour"] = new_title[2] + " " + new_title[3]
+                item["Descriptor"] = new_title[4]
+                for j in range(5, len(new_title) - 1):
+                    item["Descriptor"] += " " + new_title[j]
             else:
-                item["Colour"] = new_titles[i][2]
-                item["Descriptor"] = new_titles[i][3]
-                for j in range(4, len(new_titles[i]) - 1):
-                    item["Descriptor"] += " " + new_titles[i][j]
+                item["Colour"] = new_title[2]
+                item["Descriptor"] = new_title[3]
+                for j in range(4, len(new_title) - 1):
+                    item["Descriptor"] += " " + new_title[j]
         else:
-            item["Brand"] = new_titles[i][0]
-            if new_titles[i][1] == "Dark" or new_titles[i][1] == "Light":
-                item["Colour"] = new_titles[i][1] + " " + new_titles[i][2]
-                item["Descriptor"] = new_titles[i][3]
-                for j in range(4, len(new_titles[i]) - 1):
-                    item["Descriptor"] += " " + new_titles[i][j]
+            item["Brand"] = new_title[0]
+            if new_title[1] == "Dark" or new_title[1] == "Light":
+                item["Colour"] = new_title[1] + " " + new_title[2]
+                item["Descriptor"] = new_title[3]
+                for j in range(4, len(new_title) - 1):
+                    item["Descriptor"] += " " + new_title[j]
 
             else:
-                item["Colour"] = new_titles[i][1]
-                item["Descriptor"] = new_titles[i][2]
-                for j in range(3, len(new_titles[i]) - 1):
-                    item["Descriptor"] += " " + new_titles[i][j]
+                item["Colour"] = new_title[1]
+                item["Descriptor"] = new_title[2]
+                for j in range(3, len(new_title) - 1):
+                    item["Descriptor"] += " " + new_title[j]
         #print(f"Item {i} : {item}\n")
-    items.append(item)
-    item = {}
-    return items #List of Dictionaries
-
+    return item #List of Dictionaries
 
 def clean_title(titles):
     print(f"Found {len(titles)} titles, Now cleaning Titles!")
@@ -238,7 +249,6 @@ def clean_title(titles):
         item = {}
     return items #List of Dictionaries
 
-
 def run_scraper(site_name):
     # 1. Load Config
     with open('websites.json', 'r') as f:
@@ -264,35 +274,40 @@ def run_scraper(site_name):
             page.wait_for_timeout(1000)  # Wait for content to load
 
         product_cards = page.locator(config['container']).all()
-
-        product_titles = clean_title(page.locator(config['selectors']['title']).all_inner_texts())
+        print(f"Found {len(product_cards)} products")
+        #product_titles = clean_title(page.locator(config['selectors']['title']).all_inner_texts())
         #print(f"{product_titles}\n")
 
-        product_prices = clean_price(page.locator(config['selectors']['price']).all_inner_texts())
+        #product_prices = clean_price(page.locator(config['selectors']['price']).all_inner_texts())
         #print(f"{product_prices}\n")
 
         product_links = clean_link(page.locator(config['selectors']['link']).all())
         #print(f"{product_links}")
 
-        print(f"Found {len(product_cards)} products. Extracting...")
+        #print(f"Found {len(product_cards)} products. Extracting...")
         cpc = clean_product_cards(product_cards)
-        print(f'{cpc}')
-
+        #print(f'{cpc}')
+        print(f"")
         for i in tqdm(range(len(product_cards))):
             #print(f"Extracting Product #{i}")
-            temp_item = {}
+            product = {}
 
             #print(f"{product_cards[i].inner_text().split('\n')}")
 
-            temp_item['Brand'] = cpc[i]['Brand']
-            temp_item['Colour'] = product_titles[i]['Colour']
-            temp_item['Descriptor'] = product_titles[i]['Descriptor']
-            temp_item['Item'] = product_titles[i]['Item']
-            temp_item['Original Price'] = clean_price_card(cpc[i]['Price'])[0]
-            temp_item['Discounted Price'] = clean_price_card(cpc[i]['Price'])[1]
-            temp_item['IsNew'] = cpc[i]['IsNew']
-            temp_item['Link'] = product_links[i]
-            data_list.append(temp_item)
+            product['Brand'] = cpc[i]['Brand']
+            product_title = clean_product_title(cpc[i]['Title'])
+            #product['Unclean Brand'] = product_title['Brand']
+            product['Colour'] = product_title['Colour']
+            product['Descriptor'] = product_title['Descriptor']
+            product['Item'] = product_title['Item']
+            product['IsNew'] = cpc[i]['IsNew']
+            product_price = clean_product_price(cpc[i]['Price'])
+            product['Current Price'] = product_price[1]
+            product['Previous Price'] = product_price[0]
+            product['Unclean Link'] = clean_product_link(product_cards[i].locator("a.wizzy-result-product-item"))
+            print(f"{product['Unclean Link']}")
+            product['Link'] = product_links[i]
+            data_list.append(product)
 
         browser.close()
         return data_list

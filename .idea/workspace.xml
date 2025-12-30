@@ -4,16 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d50fb86d-5f9a-4e2e-bddc-dcfbbb3e71d0" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/Scraper#2.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/websites.json" afterDir="false" />
+    <list default="true" id="d50fb86d-5f9a-4e2e-bddc-dcfbbb3e71d0" name="Changes" comment="Cleaning and Speeding up the cleaning process">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Westside-Menswear.xlsx" beforeDir="false" afterPath="$PROJECT_DIR$/Westside-Menswear.xlsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/retail_data.db" beforeDir="false" afterPath="$PROJECT_DIR$/retail_data.db" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,7 +31,7 @@
   "keyToString": {
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master",
+    "git-widget-placeholder": "main",
     "ignore.virus.scanning.warn.message": "true"
   }
 }]]></component>
@@ -56,6 +51,27 @@
       <option name="presentableId" value="Default" />
       <updated>1765709482852</updated>
     </task>
+    <task id="LOCAL-00001" summary="Cleaning and Speeding up the cleaning process">
+      <option name="closed" value="true" />
+      <created>1767104899680</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1767104899680</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Cleaning and Speeding up the cleaning process">
+      <option name="closed" value="true" />
+      <created>1767105115568</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1767105115568</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Cleaning and Speeding up the cleaning process" />
+    <option name="LAST_COMMIT_MESSAGE" value="Cleaning and Speeding up the cleaning process" />
   </component>
 </project>
