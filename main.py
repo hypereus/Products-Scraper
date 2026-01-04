@@ -24,9 +24,9 @@ def initialize_database():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        DROP TABLE Apparels
-    ''')
+    # cursor.execute('''
+    #     DROP TABLE IF EXISTS Apparels
+    # ''')
     # Create table if it doesn't exist
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Apparels (
@@ -47,60 +47,10 @@ def initialize_database():
         )
     ''')
 
-    # Get existing columns
-    cursor.execute("PRAGMA table_info(Apparels)")
-    existing_columns = {row[1] for row in cursor.fetchall()}
-
-    # Define required columns
-    required_columns = {
-        'product_hash': 'TEXT',
-        'Brand': 'TEXT',
-        'Item': 'TEXT',
-        'Descriptor': 'TEXT',
-        'Colour': 'TEXT',
-        'IsNew': 'TEXT',
-        'Current_Price': 'REAL',
-        'Previous_Price': 'REAL',
-        'Link': 'TEXT',
-        'FirstSeen': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-        'LastUpdated': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
-    }
-
-    # Add missing columns
-    columns_added = []
-    for column_name, column_type in required_columns.items():
-        if column_name not in existing_columns:
-            try:
-                cursor.execute(f'ALTER TABLE Apparels ADD COLUMN {column_name} {column_type}')
-                columns_added.append(column_name)
-            except sqlite3.OperationalError as e:
-                print(f"Could not add column {column_name}: {e}")
-
-    # Populate product_hash for existing records if just added
-    if 'product_hash' in columns_added:
-        cursor.execute('SELECT id, Brand, Item, Descriptor, Colour FROM Apparels WHERE product_hash IS NULL')
-        existing_records = cursor.fetchall()
-
-        for record_id, brand, item, descriptor, colour in existing_records:
-            product = {
-                'Brand': brand or '',
-                'Item': item or '',
-                'Descriptor': descriptor or '',
-                'Colour': colour or ''
-            }
-            product_hash = generate_product_hash(product)
-            cursor.execute('UPDATE Apparels SET product_hash = ? WHERE id = ?', (product_hash, record_id))
-
-        if existing_records:
-            print(f"Generated hashes for {len(existing_records)} existing records")
-
     conn.commit()
     conn.close()
 
-    if columns_added:
-        print(f"Database updated! Added columns: {', '.join(columns_added)}")
-    else:
-        print("Database initialized - all columns present!")
+    print("Database initialized - table 'Apparels' created or reset!")
 
 
 def get_total_products_in_db():
@@ -156,7 +106,7 @@ def update_existing_product(product_hash, product):
     conn.close()
 
 
-def save_to_db(data, scrape_metadata):
+def save_to_db(data, metadata):
     """Save products to database, adding new or updating changed prices"""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -169,7 +119,7 @@ def save_to_db(data, scrape_metadata):
     skipped_duplicates = 0
     processed_hashes = set()
 
-    for product in tqdm(data, desc="Saving to database"):
+    for product in tqdm(data, desc="Saving to database "):
         product_hash = generate_product_hash(product)
 
         # Skip duplicates within this scrape
@@ -220,16 +170,29 @@ def save_to_db(data, scrape_metadata):
     print(f"Total products scraped: {len(data)}")
 
     complete_metadata = {
-        'timestamp': scrape_metadata['scrape_start'].strftime('%Y-%m-%d %H:%M:%S'),
-        'scrape_duration_seconds': scrape_metadata['scrape_duration_seconds'],
-        'products_before_scrape': products_before,
-        'products_after_scrape': products_after,
-        'new_products_added': new_products,
-        'products_updated': updated_products,
-        'scraped_products': len(data)
+        'Timestamp': metadata['scrape_start'].strftime('%Y-%m-%d %H:%M:%S'),
+        'Scrape Duration (in S)': metadata['scrape_duration_seconds'],
+        'Products Before Scrape': products_before,
+        'Products After Scrape': products_after,
+        'New Products Added': new_products,
+        'Previous Products Updated': updated_products,
+        'Products Scraped': len(data),
+        'Unique Products': products_after - products_before
     }
 
-    save_to_excel(data, complete_metadata)
+    # Fetch latest data from DB including timestamps for Excel export
+    export_query = """
+        SELECT 
+            Brand, Item, Descriptor, Colour, IsNew, 
+            Current_Price as "Current Price", 
+            Previous_Price as "Previous Price", 
+            Link,
+            FirstSeen, LastUpdated, LastSeen
+        FROM Apparels 
+        ORDER BY Brand, Item, Descriptor, Colour DESC
+    """
+    db_data = load_data_into_pandas(export_query)
+    save_to_excel(db_data, complete_metadata)
 
     return {
         'new_products': new_products,
@@ -239,13 +202,13 @@ def save_to_db(data, scrape_metadata):
     }
 
 
-def load_data_into_pandas(query="SELECT * FROM Apparels"):
+def load_data_into_pandas(sql_query="SELECT * FROM Apparels"):
     """Load data from database into pandas DataFrame"""
     try:
         conn = get_db_connection()
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(sql_query, conn)
         conn.close()
-        print(f"Successfully loaded {len(df)} records into DataFrame.")
+        #print(f"Successfully loaded {len(df)} records into DataFrame.")
         return df
     except sqlite3.Error as e:
         print(f"Error accessing database: {e}")
@@ -261,22 +224,15 @@ def save_to_excel(data, metadata):
     # Load existing metadata if available
     try:
         with pd.ExcelFile(excel_file) as xls:
-            existing_metadata_df = pd.read_excel(xls, sheet_name='Scrape_Metadata')
+            existing_metadata_df = pd.read_excel(xls, sheet_name='Scrape Metadata')
         new_metadata_df = pd.DataFrame([metadata])
         metadata_df = pd.concat([existing_metadata_df, new_metadata_df], ignore_index=True)
     except (FileNotFoundError, ValueError):
         metadata_df = pd.DataFrame([metadata])
 
-    # Write to Excel
     with pd.ExcelWriter(excel_file, engine='openpyxl', mode='w') as writer:
         products_df.to_excel(writer, sheet_name='Products', index=False)
-        metadata_df.to_excel(writer, sheet_name='Scrape_Metadata', index=False)
-
-        for sheet_name in writer.sheets:
-            worksheet = writer.sheets[sheet_name]
-            for column in worksheet.columns:
-                column_letter = column[0].column_letter
-                worksheet.column_dimensions[column_letter].auto_size = True
+        metadata_df.to_excel(writer, sheet_name='Scrape Metadata', index=False)
 
     print(f"Data exported to Excel with {len(products_df)} products!")
     print(f"Scrape metadata appended - Total scrapes recorded: {len(metadata_df)}")
@@ -284,12 +240,12 @@ def save_to_excel(data, metadata):
 
 # ==================== Data Cleaning Functions ====================
 
-def clean_product_cards(product_cards):
+def clean_product_cards(product_cards, attribute_link):
     """Extract text data from product card elements"""
-    print("Cleaning Product Cards...")
     cleaned_cards = []
+    product_urls = set()
 
-    for card in tqdm(product_cards):
+    for card in tqdm(product_cards, desc="Cleaning Products "):
         product = {}
         raw_text = card.inner_text().split('\n')
         clean_text = [item for item in raw_text if item.strip()]
@@ -297,17 +253,29 @@ def clean_product_cards(product_cards):
         if clean_text[0] == 'New':
             product['IsNew'] = 'True'
             product['Brand'] = clean_text[1]
-            product['Title'] = clean_text[2]
-            product['Price'] = clean_text[3]
+            result = clean_product_title(clean_text[2])
+
+            product['Item'] = result['Item']
+            product['Descriptor'] = result['Descriptor']
+            product['Colour'] = result['Colour']
+            product['Previous Price'], product['Current Price'] = clean_product_price(clean_text[3])
+            product['Link'] = card.locator(attribute_link).get_attribute('href')
         else:
             product['IsNew'] = 'False'
             product['Brand'] = clean_text[0]
-            product['Title'] = clean_text[1]
-            product['Price'] = clean_text[2]
+            result = clean_product_title(clean_text[1])
+
+            product['Item'] = result['Item']
+            product['Descriptor'] = result['Descriptor']
+            product['Colour'] = result['Colour']
+            product['Previous Price'], product['Current Price'] = clean_product_price(clean_text[2])
+            product['Link'] = card.locator(attribute_link).get_attribute('href')
+
+        product_urls.add(product['Link'])
 
         cleaned_cards.append(product)
 
-    return cleaned_cards
+    return cleaned_cards, product_urls
 
 
 def clean_product_price(price_string):
@@ -380,19 +348,19 @@ def run_scraper(site_name):
     with open('websites.json', 'r') as f:
         config = json.load(f)[site_name]
 
-    data_list = []
     scrape_start = datetime.now()
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch()
+        #browser = p.chromium.launch(headless=False)
         context = browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         )
-        page = browser.new_page()
+        page = context.new_page()
         page.goto(config['url'], wait_until='load')
 
         # Scroll to load all products
-        for _ in tqdm(range(60), desc="Scrolling page"):
+        for _ in tqdm(range(60), desc="Scrolling page "):
             page.mouse.wheel(0, 15000)
             page.wait_for_timeout(1000)
             page.wait_for_load_state('load')
@@ -400,32 +368,9 @@ def run_scraper(site_name):
         page.wait_for_load_state('load')
         product_cards = page.locator(config['container']).all()
 
-        print(f"Found {len(product_cards)} products. Cleaning...")
+        print(f"Products Scraped : {len(product_cards)}")
 
-        cleaned_cards = clean_product_cards(product_cards)
-        product_urls = set()
-
-        print("Evaluating Products...")
-        for i in tqdm(range(len(product_cards))):
-            product = {'Brand': cleaned_cards[i]['Brand']}
-
-            # Parse title
-            title_data = clean_product_title(cleaned_cards[i]['Title'])
-            product['Item'] = title_data['Item']
-            product['Descriptor'] = title_data['Descriptor']
-            product['Colour'] = title_data['Colour']
-            product['IsNew'] = cleaned_cards[i]['IsNew']
-
-            # Parse price
-            previous_price, current_price = clean_product_price(cleaned_cards[i]['Price'])
-            product['Current Price'] = current_price
-            product['Previous Price'] = previous_price
-
-            # Get link
-            product['Link'] = product_cards[i].locator(config['selectors']['link']).get_attribute('href')
-
-            product_urls.add(product['Link'])
-            data_list.append(product)
+        data_list, product_urls = clean_product_cards(product_cards, config['selectors']['link'])
 
         print(f"Number of unique products: {len(product_urls)}")
         browser.close()
@@ -445,20 +390,15 @@ def run_scraper(site_name):
 # ==================== Main Execution ====================
 
 if __name__ == "__main__":
-    # Initialize database
+
     initialize_database()
-
-    # Run scraper
     scraped_data, scrape_metadata = run_scraper('Westside')
-
-    # Save to database
     save_stats = save_to_db(scraped_data, scrape_metadata)
 
-    # Load and display results
     query = """
         SELECT 
             Brand, Item, Descriptor, Colour, IsNew, 
-            Current_Price, Previous_Price, 
+            Current_Price, Previous_Price, Link,
             FirstSeen, LastUpdated, LastSeen
         FROM 
             Apparels 
