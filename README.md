@@ -1,4 +1,4 @@
-# Westside Menswear Price Tracker
+# Products Price Tracker
 
 A Python-based web scraper that monitors product listings and price changes for Westside's menswear collection. The scraper automatically tracks new products, price updates, and maintains historical data in both SQLite and Excel formats.
 
