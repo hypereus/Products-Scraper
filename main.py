@@ -119,6 +119,16 @@ def save_to_db(data, metadata):
     skipped_duplicates = 0
     processed_hashes = set()
 
+    # Calculate sale stats
+    sale_products = [p for p in data if p['Current Price'] < p['Previous Price']]
+    if sale_products:
+        discounts = [((p['Previous Price'] - p['Current Price']) / p['Previous Price'] * 100) for p in sale_products]
+        max_discount = max(discounts)
+        min_discount = min(discounts)
+    else:
+        max_discount = 0
+        min_discount = 0
+
     for product in tqdm(data, desc="Saving to database "):
         product_hash = generate_product_hash(product)
 
@@ -169,6 +179,16 @@ def save_to_db(data, metadata):
         print(f"Duplicate products in scrape (skipped): {skipped_duplicates}")
     print(f"Total products scraped: {len(data)}")
 
+    if new_products > 0:
+        print(f"New products added: {new_products}")
+
+    if sale_products:
+        print(f"Products on sale: {len(sale_products)}")
+        print(f"Maximum Discount: {max_discount:.2f}%")
+        print(f"Minimum Discount: {min_discount:.2f}%")
+    else:
+        print("No products on sale.")
+
     complete_metadata = {
         'Timestamp': metadata['scrape_start'].strftime('%Y-%m-%d %H:%M:%S'),
         'Scrape Duration (in S)': metadata['scrape_duration_seconds'],
@@ -192,7 +212,8 @@ def save_to_db(data, metadata):
         ORDER BY Brand, Item, Descriptor, Colour DESC
     """
     db_data = load_data_into_pandas(export_query)
-    save_to_excel(db_data, complete_metadata)
+    stats_df = get_price_statistics(db_data)
+    save_to_excel(db_data, complete_metadata, stats_df)
 
     return {
         'new_products': new_products,
@@ -217,8 +238,8 @@ def load_data_into_pandas(sql_query="SELECT * FROM Apparels"):
 
 # ==================== Excel Export Functions ====================
 
-def save_to_excel(data, metadata):
-    """Save products and metadata to Excel with multiple sheets"""
+def save_to_excel(data, metadata, stats):
+    """Save products, metadata, and statistics to Excel with multiple sheets"""
     products_df = pd.DataFrame(data)
 
     # Load existing metadata if available
@@ -233,6 +254,8 @@ def save_to_excel(data, metadata):
     with pd.ExcelWriter(excel_file, engine='openpyxl', mode='w') as writer:
         products_df.to_excel(writer, sheet_name='Products', index=False)
         metadata_df.to_excel(writer, sheet_name='Scrape Metadata', index=False)
+        if not stats.empty:
+            stats.to_excel(writer, sheet_name='Statistics', index=False)
 
     print(f"Data exported to Excel with {len(products_df)} products!")
     print(f"Scrape metadata appended - Total scrapes recorded: {len(metadata_df)}")
@@ -387,6 +410,47 @@ def run_scraper(site_name):
         }
 
 
+# ==================== Analysis Functions ====================
+
+def get_price_statistics(df):
+    """Calculate and return mean, median, and mode prices for each Item"""
+    if df.empty:
+        return pd.DataFrame()
+
+    price_col = 'Current_Price' if 'Current_Price' in df.columns else 'Current Price'
+
+    if price_col not in df.columns:
+        return pd.DataFrame()
+
+    stats = df.groupby('Item')[price_col].agg(
+        Mean='mean',
+        Median='median',
+        Mode=lambda x: x.mode().iloc[0] if not x.mode().empty else None,
+        Min='min',
+        Max='max'
+    ).reset_index()
+
+    return stats
+
+
+def print_price_statistics(df):
+    """Calculate and print mean, median, and mode prices for each Item"""
+    print("\n--- Price Statistics by Item ---")
+    if df.empty:
+        print("No data available.")
+        return
+
+    stats_df = get_price_statistics(df)
+
+    if stats_df.empty:
+        print("Could not generate statistics.")
+        return
+
+    # Formatting
+    pd.options.display.float_format = '{:.2f}'.format
+    print(stats_df.to_string(index=False))
+
+
 # ==================== Main Execution ====================
 
 if __name__ == "__main__":
@@ -408,3 +472,5 @@ if __name__ == "__main__":
     westside_df = load_data_into_pandas(query)
     print("\n--- Westside Products in Database ---")
     print(westside_df)
+
+    print_price_statistics(westside_df)
